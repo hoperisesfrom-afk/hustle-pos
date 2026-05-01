@@ -1,0 +1,54 @@
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+:root {
+  --bg: #0a0a0a;
+  --surface: #141414;
+  --surface2: #1e1e1e;
+  --border: rgba(255,255,255,0.08);
+  --border-hi: rgba(255,255,255,0.15);
+  --gold: #d4a843;
+  --gold-dim: #8a6d2a;
+  --gold-bg: rgba(212,168,67,0.08);
+  --text: #f0ece4;
+  --text-muted: #7a756d;
+  --text-dim: #4a4640;
+  --green: #4caf7d;
+  --green-bg: rgba(76,175,125,0.1);
+  --red: #e05c5c;
+  --red-bg: rgba(224,92,92,0.1);
+  --blue: #5b9bd5;
+  --blue-bg: rgba(91,155,213,0.1);
+  --radius: 10px;
+  --radius-sm: 6px;
+  --mono: 'DM Mono', monospace;
+  --serif: 'Playfair Display', serif;
+}
+
+html { font-size: 16px; }
+
+body {
+  background: var(--bg);
+  color: var(--text);
+  font-family: var(--mono);
+  min-height: 100vh;
+  -webkit-font-smoothing: antialiased;
+}
+
+input, select, button, textarea {
+  font-family: var(--mono);
+  font-size: 14px;
+  color: var(--text);
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-sm);
+  outline: none;
+  transition: border-color 0.15s;
+}
+
+input:focus, select:focus { border-color: var(--gold-dim); }
+
+input::placeholder { color: var(--text-dim); }
+
+select option { background: var(--surface2); }
+
+* { scrollbar-width: thin; scrollbar-color: var(--border) transparent; }
