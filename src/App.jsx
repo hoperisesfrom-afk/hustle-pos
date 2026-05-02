@@ -84,7 +84,7 @@ export default function App() {
     <div style={{ minHeight: '100vh', background: 'var(--bg)', maxWidth: 480, margin: '0 auto', paddingBottom: 72 }}>
       <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
         <div>
-          <div style={{ fontFamily: 'var(--serif)', fontSize: 24, color: 'var(--gold)' }}>Hustle POS</div>
+          <div style={{ fontFamily: 'var(--serif)', fontSize: 24, color: 'var(--gold)' }}>Liz Luxe</div>
           <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>
             {new Date().toLocaleDateString('en-KE', { weekday: 'long', day: 'numeric', month: 'short' })}
           </div>
