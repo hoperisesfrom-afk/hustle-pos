@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import Inventory from './Inventory';
 import Sales from './Sales';
 import Dashboard from './Dashboard';
@@ -9,7 +9,7 @@ export function useStore() {
   const [sales, setSales] = useState([]);
   const [loading, setLoading] = useState(true);
 
-  const fetchAll = async () => {
+  const fetchAll = useCallback(async () => {
     const [{ data: inv }, { data: sal }] = await Promise.all([
       supabase.from('inventory').select('*').order('created_at', { ascending: false }),
       supabase.from('sales').select('*').order('created_at', { ascending: false }),
@@ -17,51 +17,46 @@ export function useStore() {
     setInventory(inv || []);
     setSales(sal || []);
     setLoading(false);
-  };
+  }, []);
 
-  useEffect(() => { fetchAll(); }, []);
+  useEffect(() => { fetchAll(); }, [fetchAll]);
 
   const addInventoryItem = async (item) => {
-    const { data } = await supabase.from('inventory').insert([{
+    await supabase.from('inventory').insert([{
       name: item.name, category: item.category,
       buying_price: item.buyingPrice, selling_price: item.sellingPrice,
       qty: item.qty, remaining: item.qty,
-    }]).select();
-    if (data) setInventory(prev => [data[0], ...prev]);
+    }]);
+    await fetchAll();
   };
 
   const addSale = async (sale) => {
-    const { data } = await supabase.from('sales').insert([{
+    await supabase.from('sales').insert([{
       customer_name: sale.customerName, item_id: sale.itemId,
       item_name: sale.itemName, item_cost: sale.itemCost,
       selling_price: sale.sellingPrice, paid: sale.paid,
       method: sale.method,
       date: new Date().toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }),
-    }]).select();
-    if (data) {
-      setSales(prev => [data[0], ...prev]);
-      await supabase.from('inventory').update({ remaining: sale.newRemaining }).eq('id', sale.itemId);
-      setInventory(prev => prev.map(i => i.id === sale.itemId ? { ...i, remaining: sale.newRemaining } : i));
-    }
+    }]);
+    await supabase.from('inventory').update({ remaining: sale.newRemaining }).eq('id', sale.itemId);
+    await fetchAll();
   };
 
   const deleteInventoryItem = async (id) => {
     await supabase.from('inventory').delete().eq('id', id);
-    setInventory(prev => prev.filter(i => i.id !== id));
+    await fetchAll();
   };
 
   const deleteSale = async (id) => {
     const sale = sales.find(s => s.id === id);
     await supabase.from('sales').delete().eq('id', id);
-    setSales(prev => prev.filter(s => s.id !== id));
     if (sale) {
       const item = inventory.find(i => i.id === sale.item_id);
       if (item) {
-        const newRemaining = item.remaining + 1;
-        await supabase.from('inventory').update({ remaining: newRemaining }).eq('id', item.id);
-        setInventory(prev => prev.map(i => i.id === item.id ? { ...i, remaining: newRemaining } : i));
+        await supabase.from('inventory').update({ remaining: item.remaining + 1 }).eq('id', item.id);
       }
     }
+    await fetchAll();
   };
 
   const markPaid = async (saleId, amount) => {
@@ -69,10 +64,10 @@ export function useStore() {
     if (!sale) return;
     const newPaid = Math.min(sale.selling_price, sale.paid + amount);
     await supabase.from('sales').update({ paid: newPaid }).eq('id', saleId);
-    setSales(prev => prev.map(s => s.id === saleId ? { ...s, paid: newPaid } : s));
+    await fetchAll();
   };
 
-  return { inventory, sales, loading, addInventoryItem, addSale, deleteInventoryItem, deleteSale, markPaid };
+  return { inventory, sales, loading, fetchAll, addInventoryItem, addSale, deleteInventoryItem, deleteSale, markPaid };
 }
 
 const TABS = [
@@ -105,8 +100,9 @@ export default function App() {
       </header>
 
       {store.loading ? (
-        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', fontSize: 13 }}>
-          Loading...
+        <div style={{ textAlign: 'center', padding: '60px 20px' }}>
+          <div style={{ fontFamily: 'var(--serif)', fontSize: 18, color: 'var(--gold)', marginBottom: 8 }}>Liz Luxe</div>
+          <div style={{ fontSize: 12, color: 'var(--text-muted)' }}>Loading your store...</div>
         </div>
       ) : (
         <main style={{ padding: '16px 20px' }}>
@@ -136,4 +132,4 @@ export default function App() {
       </nav>
     </div>
   );
-                             }
+}
