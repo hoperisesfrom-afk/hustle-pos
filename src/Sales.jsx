@@ -8,30 +8,42 @@ export default function Sales({ inventory, sales, addSale, deleteSale, markPaid,
   const [view, setView] = useState('list');
   const [paying, setPaying] = useState(null);
   const [extraPay, setExtraPay] = useState('');
+  const [saving, setSaving] = useState(false);
 
   const set = (k, v) => setForm(f => ({ ...f, [k]: v }));
   const availableStock = inventory.filter(i => i.remaining > 0);
   const selectedItem = inventory.find(i => i.id === parseInt(form.itemId));
 
-  const submit = () => {
+  const submit = async () => {
     if (!form.customerName.trim()) { setError('Customer name required'); return; }
     if (!form.itemId) { setError('Select an item'); return; }
     const p = parseFloat(form.paid);
     if (isNaN(p) || p < 0) { setError('Enter valid amount paid'); return; }
-    if (selectedItem && p > selectedItem.sellingPrice) { setError('Paid exceeds selling price'); return; }
+    if (selectedItem && p > selectedItem.selling_price) { setError('Paid exceeds selling price'); return; }
     setError('');
-    addSale({ customerName: form.customerName.trim(), itemId: selectedItem.id, itemName: selectedItem.name, itemCost: selectedItem.buyingPrice, sellingPrice: selectedItem.sellingPrice, paid: p, method: form.method });
+    setSaving(true);
+    await addSale({
+      customerName: form.customerName.trim(),
+      itemId: selectedItem.id,
+      itemName: selectedItem.name,
+      itemCost: selectedItem.buying_price,
+      sellingPrice: selectedItem.selling_price,
+      paid: p,
+      method: form.method,
+      newRemaining: selectedItem.remaining - 1,
+    });
+    setSaving(false);
     setForm(empty);
     setView('list');
   };
 
-  const debtors = sales.filter(s => s.paid < s.sellingPrice);
-  const settled = sales.filter(s => s.paid >= s.sellingPrice);
+  const debtors = sales.filter(s => s.paid < s.selling_price);
+  const settled = sales.filter(s => s.paid >= s.selling_price);
 
-  const handleMarkPaid = () => {
+  const handleMarkPaid = async () => {
     const amt = parseFloat(extraPay);
     if (isNaN(amt) || amt <= 0) return;
-    markPaid(paying, amt);
+    await markPaid(paying, amt);
     setPaying(null);
     setExtraPay('');
   };
@@ -69,7 +81,7 @@ export default function Sales({ inventory, sales, addSale, deleteSale, markPaid,
                 <select value={form.itemId} onChange={e => set('itemId', e.target.value)} style={inp}>
                   <option value="">— Select item —</option>
                   {availableStock.map(i => (
-                    <option key={i.id} value={i.id}>{i.name} — Ksh {i.sellingPrice.toLocaleString('en-KE')} ({i.remaining} left)</option>
+                    <option key={i.id} value={i.id}>{i.name} — Ksh {Number(i.selling_price).toLocaleString('en-KE')} ({i.remaining} left)</option>
                   ))}
                 </select>
               </div>
@@ -78,11 +90,11 @@ export default function Sales({ inventory, sales, addSale, deleteSale, markPaid,
                   <div style={{ display: 'flex', justifyContent: 'space-between' }}>
                     <div>
                       <div style={{ fontSize: 11, color: 'var(--gold)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Selling price</div>
-                      <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--text)', marginTop: 2 }}>Ksh {selectedItem.sellingPrice.toLocaleString('en-KE')}</div>
+                      <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--text)', marginTop: 2 }}>Ksh {Number(selectedItem.selling_price).toLocaleString('en-KE')}</div>
                     </div>
                     <div style={{ textAlign: 'right' }}>
                       <div style={{ fontSize: 11, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.08em' }}>Your profit</div>
-                      <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--green)', marginTop: 2 }}>+Ksh {(selectedItem.sellingPrice - selectedItem.buyingPrice).toLocaleString('en-KE')}</div>
+                      <div style={{ fontSize: 20, fontWeight: 500, color: 'var(--green)', marginTop: 2 }}>+Ksh {(selectedItem.selling_price - selectedItem.buying_price).toLocaleString('en-KE')}</div>
                     </div>
                   </div>
                 </div>
@@ -101,13 +113,19 @@ export default function Sales({ inventory, sales, addSale, deleteSale, markPaid,
                   </select>
                 </div>
               </div>
-              {selectedItem && form.paid && parseFloat(form.paid) < selectedItem.sellingPrice && (
+              {selectedItem && form.paid && parseFloat(form.paid) < selectedItem.selling_price && (
                 <div style={{ background: 'var(--red-bg)', border: '1px solid rgba(224,92,92,0.2)', borderRadius: 8, padding: '10px 14px', marginBottom: 14, fontSize: 13, color: 'var(--red)' }}>
-                  Balance owing: Ksh {(selectedItem.sellingPrice - parseFloat(form.paid || 0)).toLocaleString('en-KE')}
+                  Balance owing: Ksh {(selectedItem.selling_price - parseFloat(form.paid || 0)).toLocaleString('en-KE')}
                 </div>
               )}
               {error && <div style={{ fontSize: 12, color: 'var(--red)', marginBottom: 12 }}>{error}</div>}
-              <button onClick={submit} style={{ width: '100%', padding: 13, fontSize: 14, fontWeight: 500, background: 'var(--gold)', color: '#0a0a0a', border: 'none', borderRadius: 10, cursor: 'pointer', fontFamily: 'var(--mono)', letterSpacing: '0.05em' }}>Record Sale</button>
+              <button onClick={submit} disabled={saving} style={{
+                width: '100%', padding: 13, fontSize: 14, fontWeight: 500,
+                background: saving ? 'var(--surface2)' : 'var(--gold)',
+                color: saving ? 'var(--text-muted)' : '#0a0a0a',
+                border: 'none', borderRadius: 10, cursor: saving ? 'not-allowed' : 'pointer',
+                fontFamily: 'var(--mono)', letterSpacing: '0.05em',
+              }}>{saving ? 'Saving...' : 'Record Sale'}</button>
             </>
           )}
         </div>
@@ -119,16 +137,16 @@ export default function Sales({ inventory, sales, addSale, deleteSale, markPaid,
             <div style={{ marginBottom: 16 }}>
               <div style={{ fontSize: 11, color: 'var(--red)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>Owing ({debtors.length})</div>
               {debtors.map(s => {
-                const balance = s.sellingPrice - s.paid;
+                const balance = s.selling_price - s.paid;
                 return (
                   <div key={s.id} style={{ background: 'var(--surface)', border: '1px solid rgba(224,92,92,0.3)', borderRadius: 10, padding: '14px', marginBottom: 8 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                       <div>
-                        <div style={{ fontWeight: 500, fontSize: 14 }}>{s.customerName}</div>
-                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.itemName} · {s.date}</div>
+                        <div style={{ fontWeight: 500, fontSize: 14 }}>{s.customer_name}</div>
+                        <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.item_name} · {s.date}</div>
                       </div>
                       <div style={{ textAlign: 'right' }}>
-                        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--red)' }}>Ksh {balance.toLocaleString('en-KE')}</div>
+                        <div style={{ fontSize: 15, fontWeight: 500, color: 'var(--red)' }}>Ksh {Number(balance).toLocaleString('en-KE')}</div>
                         <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>balance</div>
                       </div>
                     </div>
@@ -157,11 +175,11 @@ export default function Sales({ inventory, sales, addSale, deleteSale, markPaid,
               {settled.map(s => (
                 <div key={s.id} style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px', marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                   <div>
-                    <div style={{ fontWeight: 500, fontSize: 14 }}>{s.customerName}</div>
-                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.itemName} · {s.date}</div>
+                    <div style={{ fontWeight: 500, fontSize: 14 }}>{s.customer_name}</div>
+                    <div style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 2 }}>{s.item_name} · {s.date}</div>
                   </div>
                   <div style={{ textAlign: 'right' }}>
-                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--green)' }}>+Ksh {(s.sellingPrice - s.itemCost).toLocaleString('en-KE')}</div>
+                    <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--green)' }}>+Ksh {(s.selling_price - s.item_cost).toLocaleString('en-KE')}</div>
                     <div style={{ fontSize: 11, color: 'var(--text-muted)' }}>{s.method}</div>
                   </div>
                 </div>
