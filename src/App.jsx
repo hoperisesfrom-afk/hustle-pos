@@ -2,72 +2,77 @@ import React, { useState, useEffect } from 'react';
 import Inventory from './Inventory';
 import Sales from './Sales';
 import Dashboard from './Dashboard';
-
-const STORAGE_KEY = 'hustle_pos_v3';
+import { supabase } from './supabase';
 
 export function useStore() {
   const [inventory, setInventory] = useState([]);
   const [sales, setSales] = useState([]);
+  const [loading, setLoading] = useState(true);
 
-  useEffect(() => {
-    try {
-      const raw = localStorage.getItem(STORAGE_KEY);
-      if (raw) {
-        const d = JSON.parse(raw);
-        setInventory(d.inventory || []);
-        setSales(d.sales || []);
-      }
-    } catch (e) {}
-  }, []);
-
-  const save = (inv, sal) => {
-    try {
-      localStorage.setItem(STORAGE_KEY, JSON.stringify({ inventory: inv, sales: sal }));
-    } catch (e) {}
+  const fetchAll = async () => {
+    const [{ data: inv }, { data: sal }] = await Promise.all([
+      supabase.from('inventory').select('*').order('created_at', { ascending: false }),
+      supabase.from('sales').select('*').order('created_at', { ascending: false }),
+    ]);
+    setInventory(inv || []);
+    setSales(sal || []);
+    setLoading(false);
   };
 
-  const addInventoryItem = (item) => {
-    const updated = [{ ...item, id: Date.now(), remaining: item.qty }, ...inventory];
-    setInventory(updated);
-    save(updated, sales);
+  useEffect(() => { fetchAll(); }, []);
+
+  const addInventoryItem = async (item) => {
+    const { data } = await supabase.from('inventory').insert([{
+      name: item.name, category: item.category,
+      buying_price: item.buyingPrice, selling_price: item.sellingPrice,
+      qty: item.qty, remaining: item.qty,
+    }]).select();
+    if (data) setInventory(prev => [data[0], ...prev]);
   };
 
-  const addSale = (sale) => {
-    const updatedSales = [{ ...sale, id: Date.now(), date: new Date().toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }) }, ...sales];
-    const updatedInv = inventory.map(i =>
-      i.id === sale.itemId ? { ...i, remaining: Math.max(0, i.remaining - 1) } : i
-    );
-    setSales(updatedSales);
-    setInventory(updatedInv);
-    save(updatedInv, updatedSales);
+  const addSale = async (sale) => {
+    const { data } = await supabase.from('sales').insert([{
+      customer_name: sale.customerName, item_id: sale.itemId,
+      item_name: sale.itemName, item_cost: sale.itemCost,
+      selling_price: sale.sellingPrice, paid: sale.paid,
+      method: sale.method,
+      date: new Date().toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' }),
+    }]).select();
+    if (data) {
+      setSales(prev => [data[0], ...prev]);
+      await supabase.from('inventory').update({ remaining: sale.newRemaining }).eq('id', sale.itemId);
+      setInventory(prev => prev.map(i => i.id === sale.itemId ? { ...i, remaining: sale.newRemaining } : i));
+    }
   };
 
-  const deleteInventoryItem = (id) => {
-    const updated = inventory.filter(i => i.id !== id);
-    setInventory(updated);
-    save(updated, sales);
+  const deleteInventoryItem = async (id) => {
+    await supabase.from('inventory').delete().eq('id', id);
+    setInventory(prev => prev.filter(i => i.id !== id));
   };
 
-  const deleteSale = (id) => {
+  const deleteSale = async (id) => {
     const sale = sales.find(s => s.id === id);
-    const updatedSales = sales.filter(s => s.id !== id);
-    const updatedInv = inventory.map(i =>
-      i.id === sale?.itemId ? { ...i, remaining: i.remaining + 1 } : i
-    );
-    setSales(updatedSales);
-    setInventory(updatedInv);
-    save(updatedInv, updatedSales);
+    await supabase.from('sales').delete().eq('id', id);
+    setSales(prev => prev.filter(s => s.id !== id));
+    if (sale) {
+      const item = inventory.find(i => i.id === sale.item_id);
+      if (item) {
+        const newRemaining = item.remaining + 1;
+        await supabase.from('inventory').update({ remaining: newRemaining }).eq('id', item.id);
+        setInventory(prev => prev.map(i => i.id === item.id ? { ...i, remaining: newRemaining } : i));
+      }
+    }
   };
 
-  const markPaid = (saleId, amount) => {
-    const updatedSales = sales.map(s =>
-      s.id === saleId ? { ...s, paid: Math.min(s.sellingPrice, s.paid + amount), } : s
-    );
-    setSales(updatedSales);
-    save(inventory, updatedSales);
+  const markPaid = async (saleId, amount) => {
+    const sale = sales.find(s => s.id === saleId);
+    if (!sale) return;
+    const newPaid = Math.min(sale.selling_price, sale.paid + amount);
+    await supabase.from('sales').update({ paid: newPaid }).eq('id', saleId);
+    setSales(prev => prev.map(s => s.id === saleId ? { ...s, paid: newPaid } : s));
   };
 
-  return { inventory, sales, addInventoryItem, addSale, deleteInventoryItem, deleteSale, markPaid };
+  return { inventory, sales, loading, addInventoryItem, addSale, deleteInventoryItem, deleteSale, markPaid };
 }
 
 const TABS = [
@@ -80,6 +85,8 @@ export default function App() {
   const [tab, setTab] = useState('dashboard');
   const store = useStore();
 
+  const totalProfit = store.sales.reduce((a, s) => a + (s.selling_price - s.item_cost), 0);
+
   return (
     <div style={{ minHeight: '100vh', background: 'var(--bg)', maxWidth: 480, margin: '0 auto', paddingBottom: 72 }}>
       <header style={{ padding: '20px 20px 12px', borderBottom: '1px solid var(--border)', display: 'flex', justifyContent: 'space-between', alignItems: 'flex-end' }}>
@@ -91,17 +98,23 @@ export default function App() {
         </div>
         <div style={{ textAlign: 'right' }}>
           <div style={{ fontSize: 18, fontWeight: 500, color: 'var(--green)' }}>
-            Ksh {Math.round(store.sales.reduce((a, s) => a + (s.sellingPrice - s.itemCost), 0)).toLocaleString('en-KE')}
+            Ksh {Math.round(totalProfit).toLocaleString('en-KE')}
           </div>
           <div style={{ fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.06em' }}>total profit</div>
         </div>
       </header>
 
-      <main style={{ padding: '16px 20px' }}>
-        {tab === 'dashboard' && <Dashboard {...store} />}
-        {tab === 'inventory' && <Inventory {...store} />}
-        {tab === 'sales' && <Sales {...store} setTab={setTab} />}
-      </main>
+      {store.loading ? (
+        <div style={{ textAlign: 'center', padding: '60px 20px', color: 'var(--text-muted)', fontSize: 13 }}>
+          Loading...
+        </div>
+      ) : (
+        <main style={{ padding: '16px 20px' }}>
+          {tab === 'dashboard' && <Dashboard {...store} />}
+          {tab === 'inventory' && <Inventory {...store} />}
+          {tab === 'sales' && <Sales {...store} setTab={setTab} />}
+        </main>
+      )}
 
       <nav style={{
         position: 'fixed', bottom: 0, left: '50%', transform: 'translateX(-50%)',
@@ -123,4 +136,4 @@ export default function App() {
       </nav>
     </div>
   );
-}
+                             }
