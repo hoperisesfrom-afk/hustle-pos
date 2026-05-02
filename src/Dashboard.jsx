@@ -1,25 +1,24 @@
 import React from 'react';
 
 export default function Dashboard({ inventory, sales }) {
-  const totalProfit = sales.reduce((a, s) => a + (s.sellingPrice - s.itemCost), 0);
-  const totalRevenue = sales.reduce((a, s) => a + s.sellingPrice, 0);
-  const totalOwing = sales.filter(s => s.paid < s.sellingPrice).reduce((a, s) => a + (s.sellingPrice - s.paid), 0);
+  const totalProfit = sales.reduce((a, s) => a + (s.selling_price - s.item_cost), 0);
+  const totalOwing = sales.filter(s => s.paid < s.selling_price).reduce((a, s) => a + (s.selling_price - s.paid), 0);
   const totalCollected = sales.reduce((a, s) => a + s.paid, 0);
 
   const today = new Date().toLocaleDateString('en-KE', { day: 'numeric', month: 'short', year: 'numeric' });
   const todaySales = sales.filter(s => s.date === today);
-  const todayProfit = todaySales.reduce((a, s) => a + (s.sellingPrice - s.itemCost), 0);
+  const todayProfit = todaySales.reduce((a, s) => a + (s.selling_price - s.item_cost), 0);
 
   const lowStock = inventory.filter(i => i.remaining <= 2 && i.remaining > 0);
   const outOfStock = inventory.filter(i => i.remaining === 0);
-  const debtors = sales.filter(s => s.paid < s.sellingPrice);
+  const debtors = sales.filter(s => s.paid < s.selling_price);
 
   const categoryStats = {};
   sales.forEach(s => {
-    const item = inventory.find(i => i.id === s.itemId);
+    const item = inventory.find(i => i.id === s.item_id);
     const cat = item?.category || 'Other';
     if (!categoryStats[cat]) categoryStats[cat] = { profit: 0, count: 0 };
-    categoryStats[cat].profit += s.sellingPrice - s.itemCost;
+    categoryStats[cat].profit += s.selling_price - s.item_cost;
     categoryStats[cat].count += 1;
   });
   const catList = Object.entries(categoryStats).sort((a, b) => b[1].profit - a[1].profit);
@@ -31,8 +30,6 @@ export default function Dashboard({ inventory, sales }) {
 
   return (
     <div>
-
-      {/* Today snapshot */}
       <div style={{ marginBottom: 16 }}>
         <div style={sectionLabel}>Today</div>
         <div style={{ display: 'flex', gap: 8 }}>
@@ -41,7 +38,6 @@ export default function Dashboard({ inventory, sales }) {
         </div>
       </div>
 
-      {/* All time */}
       <div style={{ marginBottom: 16 }}>
         <div style={sectionLabel}>All time</div>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 8 }}>
@@ -52,7 +48,6 @@ export default function Dashboard({ inventory, sales }) {
         </div>
       </div>
 
-      {/* Money by method */}
       <div style={{ marginBottom: 16 }}>
         <div style={sectionLabel}>Money in</div>
         <div style={{ background: 'var(--surface)', border: '1px solid var(--border)', borderRadius: 10, padding: '14px 16px' }}>
@@ -62,13 +57,12 @@ export default function Dashboard({ inventory, sales }) {
                 <div style={{ width: 8, height: 8, borderRadius: '50%', background: color }} />
                 <span style={{ fontSize: 13, color: 'var(--text-muted)' }}>{m}</span>
               </div>
-              <span style={{ fontSize: 13, fontWeight: 500, color }}> Ksh {Math.round(amt).toLocaleString('en-KE')}</span>
+              <span style={{ fontSize: 13, fontWeight: 500, color }}>Ksh {Math.round(amt).toLocaleString('en-KE')}</span>
             </div>
           ))}
         </div>
       </div>
 
-      {/* Category performance */}
       {catList.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={sectionLabel}>Best sellers</div>
@@ -88,7 +82,6 @@ export default function Dashboard({ inventory, sales }) {
         </div>
       )}
 
-      {/* Debtors */}
       {debtors.length > 0 && (
         <div style={{ marginBottom: 16 }}>
           <div style={sectionLabel}>Debtors ({debtors.length})</div>
@@ -100,11 +93,11 @@ export default function Dashboard({ inventory, sales }) {
                 borderBottom: i < debtors.length - 1 ? '1px solid var(--border)' : 'none',
               }}>
                 <div>
-                  <div style={{ fontSize: 13, fontWeight: 500 }}>{s.customerName}</div>
-                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{s.itemName} · {s.date}</div>
+                  <div style={{ fontSize: 13, fontWeight: 500 }}>{s.customer_name}</div>
+                  <div style={{ fontSize: 11, color: 'var(--text-muted)', marginTop: 2 }}>{s.item_name} · {s.date}</div>
                 </div>
                 <div style={{ fontSize: 14, fontWeight: 500, color: 'var(--red)' }}>
-                  Ksh {(s.sellingPrice - s.paid).toLocaleString('en-KE')}
+                  Ksh {(s.selling_price - s.paid).toLocaleString('en-KE')}
                 </div>
               </div>
             ))}
@@ -112,18 +105,17 @@ export default function Dashboard({ inventory, sales }) {
         </div>
       )}
 
-      {/* Stock alerts */}
       {(lowStock.length > 0 || outOfStock.length > 0) && (
         <div style={{ marginBottom: 16 }}>
           <div style={sectionLabel}>Stock alerts</div>
           {outOfStock.map(i => (
-            <div key={i.id} style={alertRow('#e05c5c')}>
+            <div key={i.id} style={alertRow('var(--red)')}>
               <span style={{ fontSize: 13 }}>{i.name}</span>
               <span style={{ fontSize: 11, color: 'var(--red)', fontWeight: 500 }}>OUT OF STOCK</span>
             </div>
           ))}
           {lowStock.map(i => (
-            <div key={i.id} style={alertRow('#d4a843')}>
+            <div key={i.id} style={alertRow('var(--gold)')}>
               <span style={{ fontSize: 13 }}>{i.name}</span>
               <span style={{ fontSize: 11, color: 'var(--gold)', fontWeight: 500 }}>{i.remaining} LEFT</span>
             </div>
@@ -134,7 +126,7 @@ export default function Dashboard({ inventory, sales }) {
       {sales.length === 0 && inventory.length === 0 && (
         <div style={{ textAlign: 'center', padding: '50px 20px', color: 'var(--text-muted)', fontSize: 13 }}>
           <div style={{ fontSize: 32, marginBottom: 12 }}>◈</div>
-          <div style={{ marginBottom: 6, fontWeight: 500, color: 'var(--text)' }}>Welcome to Hustle POS</div>
+          <div style={{ marginBottom: 6, fontWeight: 500, color: 'var(--text)', fontFamily: 'var(--serif)', fontSize: 18 }}>Welcome to Liz Luxe</div>
           <div>Start by adding your stock in the Stock tab</div>
         </div>
       )}
@@ -154,6 +146,6 @@ function StatCard({ label, value, color }) {
 const sectionLabel = { fontSize: 10, color: 'var(--text-muted)', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 };
 const alertRow = (color) => ({
   display: 'flex', justifyContent: 'space-between', alignItems: 'center',
-  background: 'var(--surface)', border: `1px solid ${color}33`,
+  background: 'var(--surface)', border: `1px solid ${color}44`,
   borderRadius: 8, padding: '10px 14px', marginBottom: 6,
 });
